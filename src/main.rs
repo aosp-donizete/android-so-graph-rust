@@ -1,4 +1,7 @@
-use petgraph::stable_graph::StableGraph;
+use petgraph::{
+    graph::NodeIndex,
+    stable_graph::{StableDiGraph, StableGraph},
+};
 use std::{collections::HashMap, fs::File};
 
 use egui_graphs::{Graph, GraphView};
@@ -11,18 +14,32 @@ pub struct JsonData {
     relations: HashMap<u32, Vec<u32>>,
 }
 
+impl JsonData {
+    fn new() -> Self {
+        let file = File::open("sample/generated.json").unwrap();
+        serde_json::from_reader(file).unwrap()
+    }
+}
+
 fn generate_graph() -> StableGraph<(), ()> {
-    let mut g: StableGraph<(), ()> = StableGraph::new();
+    let mut graph: StableGraph<(), ()> = StableDiGraph::new();
+    let mut nodes = Vec::<NodeIndex>::new();
+    let json_data = JsonData::new();
 
-    let a = g.add_node(());
-    let b = g.add_node(());
-    let c = g.add_node(());
+    for (index, value) in json_data.libraries.iter().enumerate() {
+        let node = graph.add_node(());
+        nodes.insert(index, node);
+    }
 
-    g.add_edge(a, b, ());
-    g.add_edge(b, c, ());
-    g.add_edge(c, a, ());
+    for (node_index, relations_indexes) in json_data.relations.iter() {
+        let node = nodes.get(*node_index as usize).unwrap();
+        for relation_index in relations_indexes {
+            let relation_node = nodes.get(*relation_index as usize).unwrap();
+            graph.add_edge(*node, *relation_node, ());
+        }
+    }
 
-    g
+    graph
 }
 
 pub struct BasicApp {
@@ -45,10 +62,6 @@ impl eframe::App for BasicApp {
 }
 
 fn main() -> anyhow::Result<()> {
-    let file = File::open("sample/generated.json")?;
-    let json_data: JsonData = serde_json::from_reader(file)?;
-    println!("{:?}", json_data);
-
     let native_options = eframe::NativeOptions::default();
     eframe::run_native(
         "egui_graphs_basic_demo",
@@ -56,6 +69,5 @@ fn main() -> anyhow::Result<()> {
         Box::new(|cc| Box::new(BasicApp::new(cc))),
     )
     .unwrap();
-
     Ok(())
 }
